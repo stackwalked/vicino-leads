@@ -118,5 +118,20 @@ results.append(ok(r.status_code == 400, "scan that can't fit the remaining budge
 generic = [{"name": "Bar Sport", "website": w} for w in ["", "", "https://barsport-navigli.it/"]]
 results.append(ok(L.find_chains(generic) == set(), "common name without a shared website isn't a chain"))
 
+# Google's real paging: 3 full pages, no token after the third. A full box must split.
+def google_like(key, query, box, budget, page_token=None):
+    page = int(page_token or 0)
+    size = 20 if (box[2] - box[0]) > 0.01 else 7  # the big box is full, sub-boxes aren't
+    tag = f"{box[0]:.4f}{box[1]:.4f}{box[2]:.4f}"
+    return {"places": [{"id": f"g{tag}-{page}-{i}"} for i in range(size)],
+            **({"nextPageToken": str(page + 1)} if page < 2 and size == 20 else {})}
+L.search = google_like
+b, f = L.Budget(100), {}
+L.search_cell("k", "q", L.zone_box("Navigli"), b, 0, 1, f)
+results.append(ok(b.used == 3 + 4 and len(f) == 60 + 4 * 7, f"full box splits into four (requests={b.used}, places={len(f)})"))
+b, f = L.Budget(100), {}
+L.search_cell("k", "q", L.zone_box("Navigli"), b, 1, 1, f)
+results.append(ok(b.used == 3, "no split past max depth"))
+
 print(f"\n{sum(results)}/{len(results)} passed")
 sys.exit(0 if all(results) else 1)

@@ -144,17 +144,23 @@ def search(key: str, query: str, box, budget: Budget, page_token: str | None = N
 
 
 def search_cell(key, query, box, budget, depth, max_depth, found):
-    """Search one box; if it fills all three result pages, split it in four."""
-    token, pages = None, 0
+    """Search one box; if it fills all three result pages, split it in four.
+
+    Google stops at 60 results (3 pages of 20) and sends no next-page token
+    after the third page, so a full third page is the sign there's more.
+    """
+    token, pages, got = None, 0, []
     while pages < 3 and budget.take():
         data = search(key, query, box, budget, token)
         pages += 1
-        for p in data.get("places", []):
+        got = data.get("places", [])
+        for p in got:
             found.setdefault(p["id"], p)
         token = data.get("nextPageToken")
         if not token:
-            return
-    if token and depth < max_depth:
+            break
+    full = pages == 3 and (token or len(got) >= 20)
+    if full and depth < max_depth:
         s, w, n, e = box
         mlat, mlng = (s + n) / 2, (w + e) / 2
         for sub in [(s, w, mlat, mlng), (s, mlng, mlat, e), (mlat, w, n, mlng), (mlat, mlng, n, e)]:
