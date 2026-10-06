@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Vicino Leads</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a working desk. Pipeline strip on top, filters + ranked list on the left, the open lead's card on the right (a full sheet on phones). */
+:root {
+  --bg: #eceff2; --surface: #ffffff; --sunk: #f5f7f9; --ink: #18212c; --muted: #5a6575; --line: #d4dae2;
+  --accent: #23489f; --accent-ink: #ffffff; --hot: #c8391f; --warm: #b67a00; --cool: #6a788c; --good: #2c7a4b;
+  --paper: #fffdf6; --paper-ink: #2a2620;
+  --display: "Archivo", "Arial Narrow", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --r: 6px; color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11151b; --surface: #19202a; --sunk: #151b23; --ink: #e5e9ef; --muted: #98a3b4; --line: #2a3441;
+    --accent: #8fabff; --accent-ink: #0f1830; --hot: #ff7a5e; --warm: #e8b23c; --cool: #8d9bb1; --good: #6bc995;
+    --paper: #221f19; --paper-ink: #ece4d2; color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(--body); padding-top: env(safe-area-inset-top, 0px); }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+
+.app { display: grid; grid-template-rows: auto auto 1fr; height: 100%; max-width: 1400px; margin: 0 auto; padding-inline: 16px; }
+
+header.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 16px 12px; }
+header.top h1 { font: 800 26px/1 var(--display); font-stretch: 78%; letter-spacing: -0.01em; margin: 0; text-transform: uppercase; }
+header.top h1 span { color: var(--accent); }
+header.top .meta { color: var(--muted); font-size: 13px; flex: 1 1 200px; }
+.acct { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.budget { display: grid; gap: 3px; font-size: 12px; color: var(--muted); min-width: 150px; }
+.budget i { display: block; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+.budget i b { display: block; height: 100%; background: var(--accent); }
+.who-me { font-size: 13px; color: var(--muted); }
+.who-me button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
+
+.banner { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 10px 14px; margin-bottom: 12px; font-size: 13px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.banner.run { border-color: var(--accent); }
+.banner.err { border-color: var(--hot); }
+.banner .bar { flex: 1 1 160px; height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; position: relative; }
+.banner .bar::after { content: ""; position: absolute; inset: 0; width: 30%; background: var(--accent); animation: slide 1.4s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+.banner .x { margin-left: auto; border: 0; background: none; color: var(--muted); cursor: pointer; }
+
+/* Pipeline strip */
+.pipeline { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; margin-bottom: 14px; }
+.pipeline button { border: 0; background: none; text-align: left; padding: 10px 12px; cursor: pointer; border-right: 1px solid var(--line); display: grid; gap: 2px; }
+.pipeline button:last-child { border-right: 0; }
+.pipeline button:hover { background: var(--sunk); }
+.pipeline button[aria-pressed="true"] { background: var(--sunk); box-shadow: inset 0 -3px 0 var(--accent); }
+.pipeline .n { font: 700 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+.pipeline .l { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+
+.desk { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 440px); gap: 16px; min-height: 0; padding-bottom: 16px; }
+.listcol { display: grid; grid-template-rows: auto auto 1fr; min-height: 0; gap: 10px; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters input[type=search] { flex: 1 1 200px; min-width: 0; }
+.filters input, .filters select { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 7px 10px; }
+.tiers { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--surface); }
+.tiers button { border: 0; background: none; padding: 7px 10px; cursor: pointer; border-right: 1px solid var(--line); font-size: 13px; }
+.tiers button:last-child { border-right: 0; }
+.tiers button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.count { color: var(--muted); font-size: 13px; }
+
+.list { overflow-y: auto; min-height: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.row { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 14px; border: 0; border-bottom: 1px solid var(--line); cursor: pointer; width: 100%; text-align: left; background: none; }
+.row:hover { background: var(--sunk); }
+.row[aria-current="true"] { background: var(--sunk); box-shadow: inset 3px 0 0 var(--accent); }
+.score { display: grid; justify-items: center; gap: 4px; }
+.score b { font: 700 22px/1 var(--display); font-variant-numeric: tabular-nums; color: var(--tc); }
+.score i { display: block; width: 36px; height: 4px; border-radius: 2px; background: var(--line); position: relative; overflow: hidden; }
+.score i::after { content: ""; position: absolute; inset: 0; width: var(--w); background: var(--tc); }
+.t-hot { --tc: var(--hot); } .t-warm { --tc: var(--warm); } .t-cool { --tc: var(--cool); }
+.who { min-width: 0; }
+.who .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who .sub { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chip { font-size: 11.5px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.chip.k { border-color: var(--tc, var(--line)); color: var(--ink); }
+.chip.new { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.right { display: grid; justify-items: end; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.stage { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 7px; border-radius: 3px; background: var(--sunk); border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+.stage.s-contacted, .stage.s-replied { color: var(--accent); border-color: var(--accent); }
+.stage.s-meeting { color: var(--warm); border-color: var(--warm); }
+.stage.s-client { color: var(--good); border-color: var(--good); }
+.more { display: block; width: 100%; padding: 12px; border: 0; background: none; color: var(--accent); cursor: pointer; font-weight: 600; }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); display: grid; gap: 12px; justify-items: center; }
+.empty strong { color: var(--ink); font: 700 18px/1.2 var(--display); }
+
+.detail { overflow-y: auto; min-height: 0; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.detail .inner { padding: 18px; display: grid; gap: 18px; }
+.detail .back { display: none; }
+.detail h2 { font: 750 24px/1.1 var(--display); font-stretch: 85%; margin: 0; text-wrap: balance; }
+.detail .addr { color: var(--muted); margin-top: 4px; }
+.facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; margin: 0; }
+.facts div { background: var(--surface); padding: 8px 10px; }
+.facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.facts dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.links { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--surface); padding: 7px 12px; border-radius: var(--r); cursor: pointer; text-decoration: none; color: var(--ink); font-size: 13px; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn:disabled { opacity: 0.5; cursor: default; }
+.phone { font-family: var(--mono); user-select: all; }
+h3 { font: 700 12px/1 var(--body); text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; }
+
+/* Score breakdown, set like a restaurant bill */
+.bill { background: var(--paper); color: var(--paper-ink); font-family: var(--mono); font-size: 12.5px; padding: 14px 16px 20px; border-radius: 2px; border: 1px solid var(--line);
+  -webkit-mask: radial-gradient(circle 5px at 50% 100%, #0000 98%, #000) 50% 100% / 14px 100% repeat-x; mask: radial-gradient(circle 5px at 50% 100%, #0000 98%, #000) 50% 100% / 14px 100% repeat-x; }
+.bill .head { text-align: center; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+.bill .line { display: flex; gap: 6px; }
+.bill .line .dots { flex: 1 1 auto; border-bottom: 1px dotted currentColor; opacity: 0.4; transform: translateY(-4px); min-width: 12px; }
+.bill .line span:last-child { font-variant-numeric: tabular-nums; }
+.bill .tot { border-top: 1px dashed currentColor; margin-top: 8px; padding-top: 8px; font-weight: 500; font-size: 14px; }
+.bill .foot { text-align: center; margin-top: 10px; opacity: 0.7; font-size: 11px; }
+
+.pipe-edit { display: grid; gap: 10px; }
+.stages { display: flex; flex-wrap: wrap; gap: 6px; }
+.stages button { border: 1px solid var(--line); background: var(--surface); padding: 6px 10px; border-radius: 16px; cursor: pointer; font-size: 13px; }
+.stages button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+textarea { width: 100%; min-height: 84px; border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--sunk); resize: vertical; }
+textarea#msg { min-height: 220px; line-height: 1.55; }
+.saved { font-size: 12px; color: var(--muted); min-height: 1.5em; }
+.draft { display: grid; gap: 8px; }
+.draft .opts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.draft select, .draft input { border: 1px solid var(--line); background: var(--surface); border-radius: var(--r); padding: 6px 9px; min-width: 0; }
+.draft input { flex: 1 1 160px; }
+.placeholder { padding: 40px 24px; color: var(--muted); display: grid; gap: 8px; }
+.placeholder strong { color: var(--ink); font: 700 18px/1.2 var(--display); }
+
+/* Find leads dialog */
+dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+dialog::backdrop { background: rgb(10 14 20 / 0.45); }
+dialog form { display: grid; gap: 16px; padding: 20px; }
+dialog h2 { font: 750 22px/1.1 var(--display); font-stretch: 85%; margin: 0; }
+dialog p { margin: 0; color: var(--muted); }
+.picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.picks label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 16px; padding: 4px 11px 4px 8px; cursor: pointer; font-size: 13px; }
+.picks label:has(input:checked) { border-color: var(--accent); background: var(--sunk); }
+.picks input { accent-color: var(--accent); margin: 0; }
+.picks label.city { font-weight: 600; }
+.estimate { font-size: 13px; padding: 10px 12px; background: var(--sunk); border-radius: var(--r); }
+.estimate.bad { color: var(--hot); }
+.dlg-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.formerr { color: var(--hot); font-size: 13px; }
+
+@media (max-width: 900px) {
+  .app { height: auto; min-height: 100%; }
+  .desk { grid-template-columns: minmax(0, 1fr); }
+  .list { overflow: visible; }
+  .detail { position: fixed; inset: 0; z-index: 10; border-radius: 0; border: 0; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .detail.closed { display: none; }
+  .detail .back { display: inline-flex; justify-self: start; }
+  .pipeline { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pipeline button:nth-child(3) { border-right: 0; }
+  .pipeline button:nth-child(-n+3) { border-bottom: 1px solid var(--line); }
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .row { grid-template-columns: 44px minmax(0, 1fr); }
+  .row .right { grid-column: 2; justify-items: start; grid-auto-flow: column; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .banner .bar::after { animation: none; width: 100%; opacity: 0.5; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1>Vicino <span>Leads</span></h1>
+    <div class="meta" id="meta">Loading…</div>
+    <div class="acct">
+      <div class="budget" id="budget" title="Google Places requests used this month. The server stops searches at the limit."><span id="budgetText">–</span><i><b id="budgetBar" style="width:0"></b></i></div>
+      <button class="btn primary" id="openFind">Find leads</button>
+      <form class="who-me" method="post" action="/logout"><span id="meName"></span> · <button type="submit">Log out</button></form>
+    </div>
+  </header>
+
+  <div>
+    <div class="banner" id="scanBanner" hidden></div>
+    <nav class="pipeline" id="pipeline" aria-label="Pipeline stages"></nav>
+  </div>
+
+  <div class="desk">
+    <section class="listcol" aria-label="Leads">
+      <div class="filters">
+        <input type="search" id="q" placeholder="Search name or street" aria-label="Search">
+        <select id="zone" aria-label="Neighbourhood"><option value="">All neighbourhoods</option></select>
+        <select id="type" aria-label="Venue type"><option value="">All venue types</option></select>
+        <select id="web" aria-label="Website">
+          <option value="">Any website</option>
+          <option value="none">No website</option>
+          <option value="social">Social page only</option>
+          <option value="platform">Booking or delivery page only</option>
+          <option value="broken">Website doesn't load</option>
+          <option value="weak">Outdated website</option>
+        </select>
+        <select id="sort" aria-label="Sort">
+          <option value="score">Best leads first</option>
+          <option value="new">Newest finds first</option>
+          <option value="rating">Highest rated</option>
+          <option value="reviews">Most reviews</option>
+          <option value="updated">Recently updated</option>
+          <option value="name">Name A–Z</option>
+        </select>
+        <div class="tiers" id="tiers" role="group" aria-label="Lead strength">
+          <button data-t="" aria-pressed="true">All</button>
+          <button data-t="hot" aria-pressed="false">Hot</button>
+          <button data-t="warm" aria-pressed="false">Warm</button>
+          <button data-t="cool" aria-pressed="false">Cool</button>
+        </div>
+      </div>
+      <div class="count" id="count"></div>
+      <div class="list" id="list"><div class="empty">Loading leads…</div></div>
+    </section>
+
+    <aside class="detail closed" id="detail" aria-label="Lead details">
+      <div class="placeholder">
+        <strong>Pick a lead</strong>
+        <span>Each card shows why the venue scored the way it did. You can set its stage, keep notes and write a first message.</span>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<dialog id="find">
+  <form id="findForm" method="dialog">
+    <div>
+      <h2>Find leads</h2>
+      <p>Searches Google for venues in the areas you pick, checks their websites and adds them to the list. Venues already on the list keep their stage and notes.</p>
+    </div>
+    <div>
+      <h3>Where</h3>
+      <div class="picks" id="zonePicks"></div>
+    </div>
+    <div>
+      <h3>What</h3>
+      <div class="picks" id="catPicks"></div>
+    </div>
+    <div class="estimate" id="estimate"></div>
+    <div class="formerr" id="findErr" hidden></div>
+    <div class="dlg-actions">
+      <button class="btn" type="button" id="cancelFind">Cancel</button>
+      <button class="btn primary" type="submit" id="startFind">Start search</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const STAGES = [
+  { id: "open", label: "Open leads", filterOnly: true },
+  { id: "new", label: "New" },
+  { id: "contacted", label: "Contacted" },
+  { id: "replied", label: "Replied" },
+  { id: "meeting", label: "Meeting" },
+  { id: "client", label: "Client" },
+  { id: "no", label: "Not interested" },
+];
+const STAGE_LABEL = Object.fromEntries(STAGES.map(s => [s.id, s.label]));
+const OPEN = new Set(["new", "contacted", "replied", "meeting"]);
+const WEB_LABEL = { none: "No website", social: "Social page only", platform: "Booking page only", broken: "Site doesn't load", site: "Has website" };
+const CAT_LABEL = { ristorante: "Restaurants", trattoria: "Trattorie & osterie", pizzeria: "Pizzerie", bar: "Bars & cafés", pasticceria: "Pastry & gelato", enoteca: "Wine bars" };
+
+const S = {
+  me: null, leads: [], byId: new Map(), lastScanAt: null, sel: null, shown: 50, scan: null,
+  f: { q: "", zone: "", type: "", web: "", sort: "score", tier: "", stage: "open" },
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const nf = n => Number(n || 0).toLocaleString("it-IT");
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", ...(opts.headers || {}) } });
+  if (r.status === 401) { location.href = "/login"; throw new Error("auth"); }
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || "Something went wrong. Try again.");
+  return body;
+}
+
+const stageOf = l => l.stage || "new";
+const isNew = l => S.lastScanAt && l.firstSeen >= S.lastScanAt;
+const weakSite = l => l.web?.status === "site" && (l.web.https === false || l.web.mobile === false || (l.web.year && l.web.year <= new Date().getFullYear() - 3));
+
+function filtered() {
+  const { q, zone, type, web, tier, stage, sort } = S.f;
+  const qq = q.trim().toLowerCase();
+  const out = S.leads.filter(l => {
+    if (qq && !(l.name.toLowerCase().includes(qq) || l.address.toLowerCase().includes(qq))) return false;
+    if (zone && l.zone !== zone) return false;
+    if (type && l.type !== type) return false;
+    if (tier && l.tier !== tier) return false;
+    if (web === "weak" ? !weakSite(l) : web && l.web?.status !== web) return false;
+    const st = stageOf(l);
+    if (stage === "open" ? !OPEN.has(st) : stage && st !== stage) return false;
+    return true;
+  });
+  const by = {
+    score: (a, b) => b.score - a.score,
+    new: (a, b) => (b.firstSeen || "").localeCompare(a.firstSeen || "") || b.score - a.score,
+    rating: (a, b) => (b.rating || 0) - (a.rating || 0),
+    reviews: (a, b) => (b.reviews || 0) - (a.reviews || 0),
+    name: (a, b) => a.name.localeCompare(b.name, "it"),
+    updated: (a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || ""),
+  }[sort] || ((a, b) => b.score - a.score);
+  return out.sort(by);
+}
+
+function renderPipeline() {
+  const counts = Object.fromEntries(STAGES.map(s => [s.id, 0]));
+  for (const l of S.leads) { const st = stageOf(l); counts[st]++; if (OPEN.has(st)) counts.open++; }
+  $("pipeline").innerHTML = STAGES.filter(s => s.id !== "new").map(s =>
+    `<button data-s="${s.id}" aria-pressed="${S.f.stage === s.id}"><span class="n">${nf(counts[s.id])}</span><span class="l">${esc(s.label)}</span></button>`
+  ).join("");
+}
+
+function rowHTML(l) {
+  const st = stageOf(l);
+  const keyReasons = (l.reasons || []).filter(r => r.pts > 0).sort((a, b) => b.pts - a.pts).slice(0, 3);
+  return `<button class="row t-${l.tier}" data-id="${esc(l.id)}" aria-current="${S.sel === l.id}">
+    <div class="score"><b>${l.score}</b><i style="--w:${l.score}%"></i></div>
+    <div class="who">
+      <div class="name">${esc(l.name)}</div>
+      <div class="sub">${esc(l.type)} · ${esc(l.zone)}${l.temporarilyClosed ? " · temporarily closed" : ""}</div>
+      <div class="chips">${isNew(l) ? `<span class="chip new">New find</span>` : ""}${keyReasons.map((r, i) => `<span class="chip${i === 0 ? " k" : ""}">${esc(r.text)}</span>`).join("")}</div>
+    </div>
+    <div class="right">
+      <span class="stage s-${st}">${esc(STAGE_LABEL[st])}</span>
+      <span class="mono">${l.rating ? l.rating.toFixed(1) + "★ · " : ""}${nf(l.reviews)} rev.</span>
+    </div>
+  </button>`;
+}
+
+function renderList() {
+  if (!S.leads.length) {
+    $("count").textContent = "";
+    $("list").innerHTML = `<div class="empty"><strong>No leads yet</strong><span>Pick a few neighbourhoods and the kinds of venue to look for. The first search takes a few minutes.</span><button class="btn primary" data-open-find>Find leads</button></div>`;
+    return;
+  }
+  const rows = filtered();
+  $("count").textContent = `${nf(rows.length)} of ${nf(S.leads.length)} venues`;
+  if (!rows.length) {
+    $("list").innerHTML = `<div class="empty">No venues match these filters. Try a different neighbourhood, or choose “All” lead strengths.</div>`;
+    return;
+  }
+  $("list").innerHTML = rows.slice(0, S.shown).map(rowHTML).join("") +
+    (rows.length > S.shown ? `<button class="more" id="more">Show ${Math.min(50, rows.length - S.shown)} more</button>` : "");
+}
+
+function render() { renderPipeline(); renderList(); if (S.sel) renderDetail(); }
+
+function billHTML(l) {
+  const lines = (l.reasons || []).map(r =>
+    `<div class="line"><span>${esc(r.text)}</span><span class="dots"></span><span>${r.pts > 0 ? "+" : ""}${r.pts}</span></div>`).join("");
+  return `<div class="bill t-${l.tier}">
+    <div class="head">Il conto · lead score</div>
+    ${lines || `<div class="line"><span>No gaps found</span><span class="dots"></span><span>0</span></div>`}
+    <div class="line tot"><span>Total (max 100)</span><span class="dots"></span><span>${l.score}</span></div>
+    <div class="foot">${{ hot: "Hot lead", warm: "Warm lead", cool: "Cool lead" }[l.tier]} · website and Google profile gaps, weighted by reputation</div>
+  </div>`;
+}
+
+function waLink(phone) {
+  const d = (phone || "").replace(/[^\d+]/g, "");
+  return /^\+393\d{8,}$/.test(d) ? "https://wa.me/" + d.slice(1) : null;
+}
+
+function renderDetail() {
+  const l = S.byId.get(S.sel);
+  const el = $("detail");
+  if (!l) { el.classList.add("closed"); return; }
+  el.classList.remove("closed");
+  const st = stageOf(l), wa = waLink(l.phone), w = l.web || {};
+  const webVal = w.status === "site"
+    ? [w.https === false ? "no HTTPS" : null, w.mobile === false ? "not mobile" : null, w.year ? "©" + w.year : null].filter(Boolean).join(", ") || "Looks OK"
+    : WEB_LABEL[w.status] || "–";
+  const channel = store.get("vl.channel", "whatsapp"), sig = store.get("vl.sig", S.me?.name || "");
+  el.innerHTML = `<div class="inner">
+    <button class="btn back" id="back">← All leads</button>
+    <div>
+      <h2>${esc(l.name)}</h2>
+      <div class="addr">${esc(l.type)} · ${esc(l.zone)}<br>${esc(l.address)}</div>
+    </div>
+    <dl class="facts">
+      <div><dt>Rating</dt><dd>${l.rating ? l.rating.toFixed(1) + "★" : "–"}</dd></div>
+      <div><dt>Reviews</dt><dd>${nf(l.reviews)}</dd></div>
+      <div><dt>Photos</dt><dd>${l.photos >= 10 ? "10+" : l.photos}</dd></div>
+      <div><dt>Hours</dt><dd>${l.hasHours ? "Listed" : "Missing"}</dd></div>
+      <div><dt>Website</dt><dd>${esc(webVal)}</dd></div>
+      <div><dt>Price</dt><dd>${esc({ PRICE_LEVEL_INEXPENSIVE: "€", PRICE_LEVEL_MODERATE: "€€", PRICE_LEVEL_EXPENSIVE: "€€€", PRICE_LEVEL_VERY_EXPENSIVE: "€€€€" }[l.price] || "–")}</dd></div>
+    </dl>
+    <div class="links">
+      ${l.mapsUrl ? `<a class="btn" href="${esc(l.mapsUrl)}" target="_blank" rel="noopener">Google Maps ↗</a>` : ""}
+      ${/^https?:\/\//.test(l.website) ? `<a class="btn" href="${esc(l.website)}" target="_blank" rel="noopener">Website ↗</a>` : ""}
+      ${wa ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">WhatsApp ↗</a>` : ""}
+      ${l.phone ? `<a class="btn" href="tel:${esc(l.phone.replace(/\s/g, ""))}"><span class="phone">${esc(l.phone)}</span></a>` : ""}
+    </div>
+    ${billHTML(l)}
+    <div class="pipe-edit">
+      <h3>Stage</h3>
+      <div class="stages" id="stages">${STAGES.filter(s => !s.filterOnly).map(s =>
+        `<button data-stage="${s.id}" aria-pressed="${st === s.id}">${esc(s.label)}</button>`).join("")}</div>
+      <label for="note"><h3 style="margin:6px 0 8px">Notes</h3></label>
+      <textarea id="note" placeholder="Who you spoke to, what they said, when to follow up"></textarea>
+      <div class="saved" id="saved">${savedText(l)}</div>
+    </div>
+    <div class="draft">
+      <h3>First message</h3>
+      <div class="opts">
+        <select id="channel" aria-label="Channel">
+          <option value="whatsapp">WhatsApp</option>
+          <option value="email">Email</option>
+          <option value="instagram">Instagram DM</option>
+          <option value="visit">Walk-in script</option>
+        </select>
+        <input id="sig" placeholder="Sign as (e.g. Marco, Vicino)" aria-label="Signature">
+      </div>
+      <textarea id="msg" aria-label="Message"></textarea>
+      <div class="links"><button class="btn primary" id="copyMsg">Copy message</button>${wa ? `<a class="btn" id="waSend" href="#" target="_blank" rel="noopener">Open in WhatsApp ↗</a>` : ""}<span class="saved">Edit freely before sending.</span></div>
+    </div>
+  </div>`;
+  $("note").value = l.note || "";
+  $("channel").value = channel;
+  $("sig").value = sig;
+  refreshDraft();
+}
+
+function savedText(l) {
+  if (!l.updatedAt) return "";
+  return `Updated ${new Date(l.updatedAt).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" })}${l.updatedBy ? " by " + esc(l.updatedBy) : ""}`;
+}
+
+// ---------- Italian message templates
+
+const GAP_IT = {
+  no_site: "non risulta un vostro sito web",
+  social_only: "online si trova solo la vostra pagina social, senza un sito vero e proprio",
+  platform_only: "il link online porta solo a una piattaforma di prenotazione o delivery, non a un vostro sito",
+  broken_site: "il vostro sito al momento non si apre",
+  no_https: "il sito viene segnalato come “non sicuro” dai browser",
+  not_mobile: "il sito non è comodo da consultare da smartphone",
+  stale: "il sito sembra non essere aggiornato da qualche anno",
+  no_menu: "sul sito non si trova il menù",
+  few_photos: "su Google ci sono poche foto del locale",
+  some_photos: "su Google ci sono poche foto del locale",
+  no_hours: "su Google mancano gli orari di apertura",
+  no_phone: "su Google manca il numero di telefono",
+  few_reviews: "su Google ci sono ancora poche recensioni",
+  low_reviews: "su Google ci sono ancora poche recensioni",
+};
+const joinIt = a => a.length < 2 ? (a[0] || "") : a.slice(0, -1).join(", ") + " e " + a[a.length - 1];
+
+function draftText(l, channel, sig) {
+  const name = sig || "[Nome]";
+  const gaps = [...new Set((l.reasons || []).filter(r => r.pts > 0 && GAP_IT[r.code]).sort((a, b) => b.pts - a.pts).map(r => GAP_IT[r.code]))].slice(0, 2);
+  const gapText = gaps.length ? joinIt(gaps) : "c'è spazio per farvi trovare meglio online";
+  const loved = (l.reasons || []).some(r => r.code === "loved"), liked = (l.reasons || []).some(r => r.code === "liked");
+  const rating = l.rating ? l.rating.toFixed(1).replace(".", ",") : "";
+  const praiseTu = loved ? `Ho visto che avete ${rating} stelle su Google con ${l.reviews} recensioni: complimenti, i clienti vi adorano! ` : liked ? `Ho visto le vostre belle recensioni su Google, complimenti! ` : "";
+  const praiseLei = loved ? `Ho visto che il locale ha ${rating} stelle su Google con ${l.reviews} recensioni: complimenti, è evidente che i clienti lo apprezzano molto.` : liked ? `Ho visto le ottime recensioni del locale su Google, complimenti.` : "";
+  const offer = "vi preparo gratuitamente un piccolo check della vostra presenza su Google, con 2-3 idee concrete, e ne parliamo in 15 minuti, senza impegno";
+  switch (channel) {
+    case "email": return `Oggetto: ${l.name}: più clienti da Google e Instagram
+
+Buongiorno,
+
+mi chiamo ${name} e aiuto ristoranti, bar e caffè di Milano a farsi trovare online: siti web, gestione dei social e profilo Google.
+${praiseLei ? "\n" + praiseLei + "\n" : ""}
+Cercando ${l.name} online ho notato che ${gapText}. Sono dettagli che spesso fanno la differenza quando qualcuno sceglie dove andare a mangiare.
+
+Se vi fa piacere, ${offer}.
+
+Resto a disposizione.
+Un cordiale saluto,
+${name}`;
+    case "instagram": return `Ciao! ${praiseTu}Sono ${name} e aiuto i locali di Milano con sito, social e profilo Google. Ho notato che ${gapText}. Se vi va, ${offer} 🙂`;
+    case "visit": return `Apertura:
+"Buongiorno, sono ${name}. Aiuto i locali della zona ${l.zone} a farsi trovare online. Avete due minuti?"
+
+Punti da toccare:
+${loved || liked ? `• ${loved ? `${rating} stelle con ${l.reviews} recensioni: i clienti sono già soddisfatti.` : "Ottime recensioni su Google."}\n` : ""}${gaps.map(g => "• " + g.charAt(0).toUpperCase() + g.slice(1) + ".").join("\n") || "• Presenza online da migliorare."}
+• Proposta: check gratuito del profilo Google, 15 minuti, senza impegno.
+
+Chiusura:
+"Posso lasciarvi il mio numero e passare un giorno con calma per farvi vedere cosa si può fare?"`;
+    default: return `Ciao! Sono ${name} e aiuto ristoranti, bar e caffè di Milano con sito web, social e profilo Google. ${praiseTu}
+Cercando ${l.name} online ho notato che ${gapText}: è proprio lì che tanti clienti scelgono dove andare.
+Se vi va, ${offer}. Fatemi sapere!`;
+  }
+}
+
+function refreshDraft() {
+  const l = S.byId.get(S.sel); if (!l) return;
+  const text = draftText(l, $("channel").value, $("sig").value.trim());
+  $("msg").value = text;
+  const wa = $("waSend");
+  if (wa) wa.href = waLink(l.phone) + "?text=" + encodeURIComponent(text);
+}
+
+// ---------- writes
+
+async function savePipe(id, patch, sv) {
+  const l = S.byId.get(id); if (!l) return;
+  try {
+    const r = await api(`/api/pipeline/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(patch) });
+    Object.assign(l, r);
+    if (sv && S.sel === id) sv.innerHTML = savedText(l);
+    return true;
+  } catch (e) {
+    if (sv && S.sel === id) sv.textContent = "Not saved: " + e.message;
+    return false;
+  }
+}
+
+let noteTimer = null;
+function queueNote(id, value, now) {
+  clearTimeout(noteTimer);
+  const go = () => { const l = S.byId.get(id); if (l && (l.note || "") !== value) { l.note = value; savePipe(id, { note: value }, $("saved")); } };
+  if (now) go(); else { noteTimer = setTimeout(go, 1000); $("saved").textContent = "Saving…"; }
+}
+
+// ---------- find leads
+
+function zoneSel() { return [...document.querySelectorAll("#zonePicks input[name=zone]:checked")].map(i => i.value); }
+function catSel() { return [...document.querySelectorAll("#catPicks input:checked")].map(i => i.value); }
+function updateEstimate() {
+  const city = $("cityAll")?.checked;
+  document.querySelectorAll("#zonePicks input[name=zone]").forEach(i => i.disabled = city);
+  const areas = city ? S.me.cityAreas : zoneSel().length, cats = catSel().length;
+  const min = areas * cats, left = S.me.cap - S.me.used;
+  const est = $("estimate");
+  if (!min) { est.textContent = "Pick at least one area and one type of venue."; est.classList.remove("bad"); $("startFind").disabled = true; return; }
+  const bad = min > left;
+  est.classList.toggle("bad", bad);
+  est.textContent = bad
+    ? `This needs at least ${nf(min)} Google requests and only ${nf(left)} are left this month. Pick fewer areas or venue types.`
+    : `Uses about ${nf(min)}–${nf(Math.min(left, Math.round(min * 2.5)))} of the ${nf(left)} Google requests left this month. Busy areas use more. The search stops before going over the limit.`;
+  $("startFind").disabled = bad;
+}
+
+function buildFind() {
+  const saved = store.get("vl.find", { zones: [], cats: ["ristorante", "trattoria", "pizzeria", "bar"] });
+  $("zonePicks").innerHTML = `<label class="city"><input type="checkbox" id="cityAll"> Whole city</label>` +
+    S.me.zones.map(z => `<label><input type="checkbox" name="zone" value="${esc(z)}" ${saved.zones.includes(z) ? "checked" : ""}> ${esc(z)}</label>`).join("");
+  $("catPicks").innerHTML = S.me.categories.map(c => `<label><input type="checkbox" value="${esc(c)}" ${saved.cats.includes(c) ? "checked" : ""}> ${esc(CAT_LABEL[c] || c)}</label>`).join("");
+  $("cityAll").checked = !!saved.city;
+}
+
+function openFind() {
+  if (!S.me) return;
+  if (!S.me.hasKey) { showBanner("err", "The Google Places key isn't set up on the server yet, so searches can't run."); return; }
+  if (S.scan?.status === "running") return;
+  $("findErr").hidden = true;
+  updateEstimate();
+  $("find").showModal();
+}
+
+async function startFind(e) {
+  e.preventDefault();
+  const city = $("cityAll").checked;
+  const body = { zones: city ? "city" : zoneSel(), categories: catSel() };
+  store.set("vl.find", { zones: zoneSel(), cats: body.categories, city });
+  $("startFind").disabled = true;
+  try {
+    const r = await api("/api/scans", { method: "POST", body: JSON.stringify(body) });
+    $("find").close();
+    S.scan = r.scan; showScan(); pollScan();
+  } catch (err) {
+    $("findErr").textContent = err.message; $("findErr").hidden = false; $("startFind").disabled = false;
+  }
+}
+
+function showBanner(kind, html) {
+  const b = $("scanBanner");
+  b.className = "banner " + kind; b.innerHTML = html; b.hidden = false;
+}
+
+function showScan() {
+  const s = S.scan;
+  if (!s) return;
+  if (s.status === "running") {
+    showBanner("run", `<strong>${esc(s.progress || "Searching")}</strong><span class="mono">${nf(s.found)} venues · ${nf(s.requests)} requests</span><span class="bar"></span><span>You can keep working while it runs.</span>`);
+    $("openFind").disabled = true;
+  } else {
+    $("openFind").disabled = false;
+    if (store.get("vl.seenScan", null) === s.id) { $("scanBanner").hidden = true; return; }
+    const when = new Date(s.finished_at || s.started_at).toLocaleString("it-IT", { dateStyle: "medium", timeStyle: "short" });
+    const kind = s.status === "done" && !s.error ? "" : "err";
+    const msg = s.status === "done"
+      ? `<strong>Search finished</strong><span>${esc(s.progress)} · ${nf(s.requests)} requests · ${when}</span>${s.error ? `<span>${esc(s.error)}</span>` : ""}`
+      : s.status === "interrupted"
+        ? `<strong>The last search was cut off</strong><span>The server restarted while it ran (${when}). Run it again. Venues it had already saved are kept.</span>`
+        : `<strong>Search failed</strong><span>${esc(s.error || "Unknown error")}</span>`;
+    showBanner(kind, msg + `<button class="x" data-dismiss="${esc(s.id)}" aria-label="Dismiss">✕</button>`);
+  }
+}
+
+let pollTimer = null;
+async function pollScan() {
+  clearTimeout(pollTimer);
+  try {
+    const r = await api("/api/scans/latest");
+    const was = S.scan?.status;
+    S.scan = r.scan; S.me.used = r.used; S.me.cap = r.cap; renderBudget();
+    showScan();
+    if (was === "running" && S.scan?.status !== "running") await loadLeads();
+    if (S.scan?.status === "running") pollTimer = setTimeout(pollScan, 2500);
+  } catch { pollTimer = setTimeout(pollScan, 10000); }
+}
+
+function renderBudget() {
+  const { used, cap } = S.me;
+  $("budgetText").textContent = `${nf(Math.max(cap - used, 0))} of ${nf(cap)} Google requests left`;
+  $("budgetBar").style.width = Math.min(100, (used / cap) * 100) + "%";
+}
+
+// ---------- events
+
+function select(id) {
+  S.sel = id; store.set("vl.sel", id);
+  renderDetail();
+  document.querySelectorAll(".row").forEach(r => r.setAttribute("aria-current", String(r.dataset.id === id)));
+}
+
+document.addEventListener("click", e => {
+  const t = e.target;
+  const row = t.closest(".row"); if (row) return select(row.dataset.id);
+  if (t.id === "more") { S.shown += 50; return renderList(); }
+  if (t.id === "back") { S.sel = null; return $("detail").classList.add("closed"); }
+  if (t.id === "openFind" || t.closest("[data-open-find]")) return openFind();
+  if (t.id === "cancelFind") return $("find").close();
+  if (t.dataset.dismiss) { store.set("vl.seenScan", t.dataset.dismiss); return $("scanBanner").hidden = true; }
+  const ps = t.closest(".pipeline button"); if (ps) { S.f.stage = S.f.stage === ps.dataset.s && ps.dataset.s !== "open" ? "open" : ps.dataset.s; S.shown = 50; saveF(); return render(); }
+  const tb = t.closest(".tiers button"); if (tb) { S.f.tier = tb.dataset.t; document.querySelectorAll(".tiers button").forEach(b => b.setAttribute("aria-pressed", String(b === tb))); S.shown = 50; saveF(); return renderList(); }
+  const sb = t.closest("#stages button");
+  if (sb && S.sel) {
+    const l = S.byId.get(S.sel), prev = stageOf(l), next = sb.dataset.stage;
+    if (prev === next) return;
+    l.stage = next; renderPipeline(); renderList();
+    document.querySelectorAll("#stages button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.stage === next)));
+    savePipe(l.id, { stage: next }, $("saved")).then(ok => { if (!ok) { l.stage = prev; render(); } });
+    return;
+  }
+  if (t.id === "copyMsg") {
+    const text = $("msg").value;
+    navigator.clipboard.writeText(text).then(() => { t.textContent = "Copied"; setTimeout(() => t.textContent = "Copy message", 1200); })
+      .catch(() => { $("msg").select(); t.textContent = "Press Ctrl+C"; });
+  }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "note" && S.sel) queueNote(S.sel, e.target.value);
+  if (e.target.id === "sig") { store.set("vl.sig", e.target.value.trim()); refreshDraft(); }
+  if (e.target.id === "msg") { const wa = $("waSend"); const l = S.byId.get(S.sel); if (wa && l) wa.href = waLink(l.phone) + "?text=" + encodeURIComponent(e.target.value); }
+});
+document.addEventListener("change", e => {
+  if (e.target.id === "channel") { store.set("vl.channel", e.target.value); refreshDraft(); }
+  if (e.target.closest("#find")) updateEstimate();
+});
+document.addEventListener("focusout", e => { if (e.target.id === "note" && S.sel) queueNote(S.sel, e.target.value, true); });
+$("findForm").addEventListener("submit", startFind);
+for (const id of ["q", "zone", "type", "web", "sort"]) {
+  $(id).addEventListener(id === "q" ? "input" : "change", e => { S.f[id] = e.target.value; S.shown = 50; saveF(); renderList(); });
+}
+function saveF() { store.set("vl.f", S.f); }
+// Pick up the other person's changes when coming back to the tab.
+document.addEventListener("visibilitychange", () => { if (!document.hidden && document.activeElement?.tagName !== "TEXTAREA") loadLeads(); });
+
+// ---------- boot
+
+function fillSelect(sel, vals) {
+  const cur = sel.value;
+  sel.querySelectorAll("option:not(:first-child)").forEach(o => o.remove());
+  sel.insertAdjacentHTML("beforeend", vals.map(v => `<option>${esc(v)}</option>`).join(""));
+  sel.value = vals.includes(cur) ? cur : "";
+}
+
+async function loadLeads() {
+  try {
+    const r = await api("/api/leads");
+    S.leads = r.leads; S.lastScanAt = r.lastScanAt;
+    S.byId = new Map(S.leads.map(l => [l.id, l]));
+  } catch (e) {
+    if (e.message !== "auth") $("list").innerHTML = `<div class="empty">The lead list couldn't load: ${esc(e.message)} Reload the page to try again.</div>`;
+    return;
+  }
+  $("meta").textContent = S.leads.length
+    ? `${nf(S.leads.length)} venues in Milano${S.lastScanAt ? " · last search " + new Date(S.lastScanAt).toLocaleDateString("it-IT", { day: "numeric", month: "long" }) : ""}`
+    : "No venues yet";
+  fillSelect($("zone"), [...new Set(S.leads.map(l => l.zone).filter(Boolean))].sort((a, b) => a.localeCompare(b, "it")));
+  const types = Object.entries(S.leads.reduce((m, l) => (l.type && (m[l.type] = (m[l.type] || 0) + 1), m), {})).sort((a, b) => b[1] - a[1]).map(x => x[0]);
+  fillSelect($("type"), types);
+  for (const id of ["zone", "type"]) S.f[id] = $(id).value;
+  if (S.sel && !S.byId.has(S.sel)) S.sel = null;
+  render();
+}
+
+async function boot() {
+  try { S.me = await api("/api/me"); } catch { return; }
+  $("meName").textContent = S.me.name;
+  renderBudget();
+  buildFind();
+  Object.assign(S.f, store.get("vl.f", {}));
+  for (const id of ["q", "sort", "web"]) { $(id).value = S.f[id]; if ($(id).value !== S.f[id]) S.f[id] = $(id).value; }
+  document.querySelectorAll(".tiers button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.t === S.f.tier)));
+  const savedSel = store.get("vl.sel", null);
+  const savedF = store.get("vl.f", {});
+  await loadLeads();
+  for (const id of ["zone", "type"]) if (savedF[id]) { $(id).value = savedF[id]; S.f[id] = $(id).value; }
+  if (savedSel && S.byId.has(savedSel) && matchMedia("(min-width: 901px)").matches) S.sel = savedSel;
+  render();
+  pollScan();
+}
+boot();
+</script>
+</body>
+</html>
