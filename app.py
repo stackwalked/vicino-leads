@@ -259,7 +259,8 @@ def run_scan(sid, zones, cats, limit):
 
     try:
         progress("Checking websites")
-        fresh = [l for l in (L.to_lead(p) for p in found.values()) if l]
+        photos_reported = any("photos" in p for p in found.values())
+        fresh = [l for l in (L.to_lead(p, photos_reported) for p in found.values()) if l]
         existing = {r["id"]: r for r in db.select("SELECT id, data, web_checked FROM leads")}
         cutoff = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=RECHECK_DAYS)).isoformat()
         to_check = []

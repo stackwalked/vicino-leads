@@ -281,8 +281,10 @@ def score(lead: dict, chains: set[str]) -> tuple[int, list[dict]]:
         pts += min(q, 25)
 
     g = 0
-    photos = lead["photos"]
-    if photos < 3:
+    photos = lead.get("photos")
+    if photos is None:  # Google didn't report photos; don't guess
+        pass
+    elif photos < 3:
         g += 12
         why.append({"code": "few_photos", "text": f"Only {photos} photos on Google", "pts": 12})
     elif photos < 10:
@@ -332,11 +334,15 @@ def find_chains(leads: list[dict]) -> set[str]:
 
 
 def tier(s: int) -> str:
-    return "hot" if s >= 60 else "warm" if s >= 40 else "cool"
+    return "hot" if s >= 50 else "warm" if s >= 30 else "cool"
 
 
-def to_lead(p: dict) -> dict | None:
-    """Flatten a Places result into a lead, or None if it has closed for good."""
+def to_lead(p: dict, photos_reported: bool = True) -> dict | None:
+    """Flatten a Places result into a lead, or None if it has closed for good.
+
+    Text Search often omits photos for every place; pass photos_reported=False
+    then, so a missing list reads as unknown rather than zero.
+    """
     if p.get("businessStatus") == "CLOSED_PERMANENTLY":
         return None
     loc = p.get("location", {})
@@ -354,7 +360,7 @@ def to_lead(p: dict) -> dict | None:
         "mapsUrl": p.get("googleMapsUri", ""),
         "rating": p.get("rating"),
         "reviews": p.get("userRatingCount", 0),
-        "photos": len(p.get("photos", [])),
+        "photos": len(p["photos"]) if "photos" in p else (0 if photos_reported else None),
         "hasHours": bool(p.get("regularOpeningHours")),
         "price": p.get("priceLevel", ""),
         "temporarilyClosed": p.get("businessStatus") == "CLOSED_TEMPORARILY",

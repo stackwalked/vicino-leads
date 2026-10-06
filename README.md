@@ -33,11 +33,11 @@ The fields the app asks Google for (website, rating, hours, phone) are billed as
 |---|---|
 | No website / only a social page / only a booking page / site doesn't load | 35 / 30 / 28 / 30 |
 | Site without HTTPS, not mobile-friendly, © 3+ years old, no menu | 10, 12, 8, 4 (max 25) |
-| Under 3 photos (under 10), no hours, no phone, under 20 reviews (under 50) | 12 (5), 10, 6, 8 (4) (max 30) |
+| Under 3 photos (under 10), no hours, no phone, under 20 reviews (under 50) | 12 (5), 10, 6, 8 (4) (max 30). Photos only count when Google reports them, which Text Search often doesn't. |
 | Rated 4.3+ with 30+ reviews / rated 4.0+ / rated under 3.5 | +15 / +8 / −10 |
 | Same name and website domain on 3+ venues (a chain) | −40 |
 
-Hot is 60 or more, warm is 40–59, cool is under 40. Scores are recalculated each time the list loads, so changing `leads.py` re-ranks everything without a new search. Websites are re-checked when a venue turns up in a search more than 30 days after its last check.
+Hot is 50 or more, warm is 30–49, cool is under 30. Scores are recalculated each time the list loads, so changing `leads.py` re-ranks everything without a new search. Websites are re-checked when a venue turns up in a search more than 30 days after its last check.
 
 ## Run locally
 

@@ -401,7 +401,7 @@ function renderDetail() {
     <dl class="facts">
       <div><dt>Rating</dt><dd>${l.rating ? l.rating.toFixed(1) + "★" : "–"}</dd></div>
       <div><dt>Reviews</dt><dd>${nf(l.reviews)}</dd></div>
-      <div><dt>Photos</dt><dd>${l.photos >= 10 ? "10+" : l.photos}</dd></div>
+      <div><dt>Photos</dt><dd>${l.photos == null ? "–" : l.photos >= 10 ? "10+" : l.photos}</dd></div>
       <div><dt>Hours</dt><dd>${l.hasHours ? "Listed" : "Missing"}</dd></div>
       <div><dt>Website</dt><dd>${esc(webVal)}</dd></div>
       <div><dt>Price</dt><dd>${esc({ PRICE_LEVEL_INEXPENSIVE: "€", PRICE_LEVEL_MODERATE: "€€", PRICE_LEVEL_EXPENSIVE: "€€€", PRICE_LEVEL_VERY_EXPENSIVE: "€€€€" }[l.price] || "–")}</dd></div>
